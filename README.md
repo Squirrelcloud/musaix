@@ -6,4 +6,4 @@ Live site is deployed on Vercel from this repository.
 
 ## Alic3X Pro
 
-Voice co-pilot that drives Ableton from the browser: ElevenLabs voice → Musaix Tool Brain (AI Gateway / OpenRouter, Supabase memory) → FastAPI OSC bridge → Ableton Live 12. Open `/alic3x`. Setup and architecture: [docs/ALIC3X.md](docs/ALIC3X.md).
+Voice co-pilot that drives Ableton from the browser: ElevenLabs voice → Musaix Tool Brain (AI Gateway / OpenRouter, Supabase auth + memory) → FastAPI OSC bridge → Ableton Live 12. It's a separate Next.js app in [`apps/alic3x`](apps/alic3x), with the bridge in [`bridge/`](bridge). Setup and architecture: [docs/ALIC3X.md](docs/ALIC3X.md).

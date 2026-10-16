@@ -4,7 +4,7 @@ import { createBridge, createLlm, createStore } from "./adapters.server.ts";
 import { MODES, type Mode } from "./tools.ts";
 
 /**
- * Entry points shared by the console server functions and the ElevenLabs
+ * Entry points shared by the console API routes and the ElevenLabs
  * webhook. Sessions are always minted here, so a session id maps to exactly
  * one owner and neither caller can act on someone else's session.
  */

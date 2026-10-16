@@ -5,10 +5,10 @@
 ```
  Sterling ──talks──▶ ElevenLabs agent ──server tool (webhook)──┐
                                                                ▼
- Alic3X Voice Console ──server fns──▶  Musaix Backend / Tool Brain  ◀──▶ Vercel AI Gateway / OpenRouter
- (/alic3x: transcript,                 src/lib/alic3x/*                 (model routing, tool calling)
-  mode selector, tool feed)                 │        │
-                                            │        └──▶ Supabase (sessions, turns, tool logs,
+ Alic3X Voice Console ──/api/*──▶  Musaix Backend / Tool Brain  ◀──▶ Vercel AI Gateway / OpenRouter
+ (Next.js, apps/alic3x:             apps/alic3x/lib/alic3x/*         (model routing, tool calling)
+  transcript, mode selector,                │        │
+  tool feed)                                │        └──▶ Supabase (auth, sessions, turns, tool logs,
                                             │                       memory, knowledge base)
                                   tool calls│▲ results
                                             ▼│
@@ -18,20 +18,22 @@
                               Ableton Live 12 + MusaixPROOSC / Max for Live
 ```
 
-| Box in the diagram             | Where it lives                                                                                                                                                                   |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Alic3X Voice Console           | `src/routes/alic3x.tsx`, `src/components/alic3x/console.tsx`                                                                                                                     |
-| Musaix Backend / Tool Brain    | `src/lib/alic3x/brain.server.ts` (loop), `tools.ts` (tool registry + modes), `adapters.server.ts` (model, bridge, Supabase), `service.server.ts` + `functions.ts` (entry points) |
-| ElevenLabs Voice Interface     | `@elevenlabs/react` in the console + webhook `src/routes/api/alic3x/elevenlabs-tool.ts`                                                                                          |
-| Vercel AI Gateway / OpenRouter | `createLlm` in `adapters.server.ts` (OpenAI-compatible chat completions)                                                                                                         |
-| Supabase                       | `supabase/migrations/20261016000000_alic3x.sql`                                                                                                                                  |
-| Knowledge Base                 | `alic3x_kb_chunks` + `alic3x_search_kb()` (Postgres full-text)                                                                                                                   |
-| FastAPI OSC Bridge             | `bridge/` (Python)                                                                                                                                                               |
+Alic3X is its own **Next.js app** in `apps/alic3x`, deployed as a separate Vercel project. The Musaix landing page at the repo root is unchanged (TanStack Start).
+
+| Box in the diagram             | Where it lives                                                                                                                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alic3X Voice Console           | `apps/alic3x/app/page.tsx`, `apps/alic3x/components/console.tsx`, sign-in at `app/login`                                                                                                                                           |
+| Musaix Backend / Tool Brain    | `apps/alic3x/lib/alic3x/`: `brain.server.ts` (loop), `tools.ts` (tool registry + modes), `adapters.server.ts` (model, bridge, Supabase), `service.server.ts` (sessions); HTTP in `app/api/{session,ask,bridge-status,tool-events}` |
+| ElevenLabs Voice Interface     | `@elevenlabs/react` in the console + webhook `apps/alic3x/app/api/elevenlabs-tool/route.ts`                                                                                                                                        |
+| Vercel AI Gateway / OpenRouter | `createLlm` in `adapters.server.ts` (OpenAI-compatible chat completions)                                                                                                                                                           |
+| Supabase                       | Auth: `apps/alic3x/lib/auth.server.ts` (magic-link email). Data: `supabase/migrations/20261016000000_alic3x.sql`                                                                                                                   |
+| Knowledge Base                 | `alic3x_kb_chunks` + `alic3x_search_kb()` (Postgres full-text)                                                                                                                                                                     |
+| FastAPI OSC Bridge             | `bridge/` (Python)                                                                                                                                                                                                                 |
 
 ## How a turn works
 
 1. **Voice:** the console asks the server to mint a session, gets back a signed ElevenLabs URL, and connects with `session_id` and `mode` as dynamic variables. The ElevenLabs agent sends every request to the one server tool, `musaix_brain`, and speaks the `reply` it gets back.
-   **Text:** the console calls the `askAlic3x` server function directly.
+   **Text:** the console posts to `/api/ask`.
 2. The brain loads Sterling's memories, the session's last 20 turns and the top knowledge-base hits from Supabase, then calls the model with the tools allowed in the current mode.
 3. Each tool call is checked against its zod schema and mode before anything runs. Bridge tools become a `{type, args}` command that goes to the FastAPI bridge, which checks it again (Pydantic), queues it (8 Hz), and sends it to Live. `panic` skips the queue and drops everything still pending.
 4. Every turn and tool call is written to Supabase. During voice sessions the console polls the tool log, so the Tool Feed shows voice turns too.
@@ -45,25 +47,35 @@
 | Perform | state, play/stop, tempo, scenes, clips, mute                                           |
 | Chat    | none                                                                                   |
 
-To add a tool, add it to `src/lib/alic3x/tools.ts` **and** `bridge/musaix_bridge/commands.py`. Both sides validate, so a tool that exists on only one side fails closed.
+To add a tool, add it to `apps/alic3x/lib/alic3x/tools.ts` **and** `bridge/musaix_bridge/commands.py`. Both sides validate, so a tool that exists on only one side fails closed.
 
 ## Setup
 
-### 1. Environment (Vercel project settings, or a local `.env`)
+### 1. Vercel project
 
-| Variable                                       | Needed for       | Notes                                                                            |
-| ---------------------------------------------- | ---------------- | -------------------------------------------------------------------------------- |
-| `AI_GATEWAY_API_KEY` _or_ `OPENROUTER_API_KEY` | Brain            | AI Gateway wins if both are set                                                  |
-| `ALIC3X_MODEL`                                 | Brain            | Defaults to `anthropic/claude-sonnet-4.5`. Use any slug your gateway lists.      |
-| `ALIC3X_LLM_BASE_URL`                          | Brain (optional) | Any other OpenAI-compatible endpoint, e.g. a local model                         |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`    | Memory/logs/KB   | Server-only. If unset, an in-process store is used (dev only, wiped on restart). |
-| `OSC_BRIDGE_URL`, `OSC_BRIDGE_TOKEN`           | Ableton control  | A public URL that reaches the bridge (see step 4)                                |
-| `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`    | Voice            | If unset, the console runs text-only                                             |
-| `ELEVENLABS_TOOL_SECRET`                       | Voice            | Random string; the agent's webhook sends it as `x-alic3x-secret`                 |
+In Vercel: **Add New → Project → Import** `Squirrelcloud/musaix`, then set **Root Directory** to `apps/alic3x`. Vercel detects Next.js; leave the build settings at their defaults. (The landing page, if you deploy it, is a separate project with the repo root as its root directory.)
+
+### Environment variables
+
+| Variable                                                    | Needed for       | Notes                                                                                                   |
+| ----------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sign-in          | Required in production. Without them a production deploy refuses all access.                            |
+| `ALIC3X_ALLOWED_EMAILS`                                     | Sign-in          | Comma-separated emails allowed in. Required in production: an empty list lets **no one** in.            |
+| `AI_GATEWAY_API_KEY` _or_ `OPENROUTER_API_KEY`              | Brain            | AI Gateway wins if both are set                                                                         |
+| `ALIC3X_MODEL`                                              | Brain            | Defaults to `anthropic/claude-sonnet-4.5`. Use any slug your gateway lists.                             |
+| `ALIC3X_LLM_BASE_URL`                                       | Brain (optional) | Any other OpenAI-compatible endpoint, e.g. a local model                                                |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`                 | Memory/logs/KB   | Server-only. If unset, an in-process store is used (fine for trying it out; wiped on every cold start). |
+| `OSC_BRIDGE_URL`, `OSC_BRIDGE_TOKEN`                        | Ableton control  | A public URL that reaches the bridge (see step 4)                                                       |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`                 | Voice            | If unset, the console runs text-only                                                                    |
+| `ELEVENLABS_TOOL_SECRET`                                    | Voice            | Random string; the agent's webhook sends it as `x-alic3x-secret`                                        |
+
+Locally (`cd apps/alic3x && npm install && npm run dev`), Supabase Auth is optional: without it you're signed in as a single dev user.
 
 ### 2. Supabase
 
-Run `supabase/migrations/20261016000000_alic3x.sql` (`supabase db push`, or paste it into the SQL editor). RLS is on with no policies: only the backend's service-role key can read or write these tables. To load project docs into the knowledge base, insert chunks of a few hundred words each into `alic3x_kb_chunks (source, title, content)`.
+**Auth:** in the Supabase dashboard, keep the Email provider on, set **Site URL** to your Alic3X URL and add `https://<your-app>/auth/callback` to the redirect URLs. Sign-in is by magic link.
+
+**Data:** run `supabase/migrations/20261016000000_alic3x.sql` (`supabase db push`, or paste it into the SQL editor). RLS is on with no policies: only the backend's service-role key can read or write these tables. To load project docs into the knowledge base, insert chunks of a few hundred words each into `alic3x_kb_chunks (source, title, content)`.
 
 ### 3. ElevenLabs agent
 
@@ -71,7 +83,7 @@ Create a Conversational AI agent and set:
 
 - **System prompt:** "You are the voice of Alic3X. For every request from Sterling, call `musaix_brain` with his words, then say its `reply` exactly. Never invent actions or results yourself."
 - **Dynamic variables:** `session_id`, `mode` (the console fills these in when it connects).
-- **Server tool** `musaix_brain`: webhook, `POST https://<your-app>/api/alic3x/elevenlabs-tool`
+- **Server tool** `musaix_brain`: webhook, `POST https://<your-app>/api/elevenlabs-tool`
   - header `x-alic3x-secret`: the value of `ELEVENLABS_TOOL_SECRET`
   - body: `utterance` (string, LLM-filled: "Sterling's request, verbatim"), `session_id` = `{{session_id}}`, `mode` = `{{mode}}`
   - response timeout: 20 s or more (a turn can take several model↔tool round trips)
@@ -85,7 +97,7 @@ See [`bridge/README.md`](../bridge/README.md). In short: install the requirement
 
 ## Security notes
 
-- Console calls go through `authMiddleware`. Sessions are created server-side and tied to their owner, so neither the console nor the webhook can act on someone else's session.
+- Every console API route requires a Supabase session whose email is on `ALIC3X_ALLOWED_EMAILS`. Production fails closed when auth isn't configured. Sessions are created server-side and tied to their owner, so neither the console nor the webhook can act on someone else's session.
 - The webhook is protected by a shared secret (compared in constant time). The user always comes from the session, never from the request body.
 - The bridge requires `X-Bridge-Token` on everything except `/health`. Never expose it without a token.
 - Commands are validated twice (backend zod, bridge Pydantic) and rate-limited. Unknown commands never reach Live.

@@ -10,53 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as Alic3xRouteImport } from './routes/alic3x'
-import { Route as ApiAlic3xElevenlabsToolRouteImport } from './routes/api/alic3x/elevenlabs-tool'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Alic3xRoute = Alic3xRouteImport.update({
-  id: '/alic3x',
-  path: '/alic3x',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAlic3xElevenlabsToolRoute = ApiAlic3xElevenlabsToolRouteImport.update({
-  id: '/api/alic3x/elevenlabs-tool',
-  path: '/api/alic3x/elevenlabs-tool',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/alic3x': typeof Alic3xRoute
-  '/api/alic3x/elevenlabs-tool': typeof ApiAlic3xElevenlabsToolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/alic3x': typeof Alic3xRoute
-  '/api/alic3x/elevenlabs-tool': typeof ApiAlic3xElevenlabsToolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/alic3x': typeof Alic3xRoute
-  '/api/alic3x/elevenlabs-tool': typeof ApiAlic3xElevenlabsToolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/alic3x' | '/api/alic3x/elevenlabs-tool'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/alic3x' | '/api/alic3x/elevenlabs-tool'
-  id: '__root__' | '/' | '/alic3x' | '/api/alic3x/elevenlabs-tool'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  Alic3xRoute: typeof Alic3xRoute
-  ApiAlic3xElevenlabsToolRoute: typeof ApiAlic3xElevenlabsToolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -68,27 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/alic3x': {
-      id: '/alic3x'
-      path: '/alic3x'
-      fullPath: '/alic3x'
-      preLoaderRoute: typeof Alic3xRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/alic3x/elevenlabs-tool': {
-      id: '/api/alic3x/elevenlabs-tool'
-      path: '/api/alic3x/elevenlabs-tool'
-      fullPath: '/api/alic3x/elevenlabs-tool'
-      preLoaderRoute: typeof ApiAlic3xElevenlabsToolRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  Alic3xRoute: Alic3xRoute,
-  ApiAlic3xElevenlabsToolRoute: ApiAlic3xElevenlabsToolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

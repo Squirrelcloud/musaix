@@ -1,28 +1,37 @@
+"use client";
+
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { Mic, MicOff, Send, Square, Wrench } from "lucide-react";
 import { toast } from "sonner";
-import {
-  askAlic3x,
-  getBridgeStatus,
-  listAlic3xToolEvents,
-  startAlic3xSession,
-} from "@/lib/alic3x/functions";
 import { MODES, MODE_LABELS, type Mode, type ToolEvent } from "@/lib/alic3x/tools";
 import { cn } from "@/lib/utils";
+
+async function api<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) window.location.assign("/login");
+  if (!res.ok)
+    throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  return data as T;
+}
 
 type Turn = { id: string; role: "user" | "agent"; text: string; channel: "voice" | "text" };
 type Session = { id: string; signedUrl: string | null };
 
-export function Alic3xConsole() {
+export function Alic3xConsole({ email }: { email?: string }) {
   return (
     <ConversationProvider>
-      <ConsoleInner />
+      <ConsoleInner email={email} />
     </ConversationProvider>
   );
 }
 
-function ConsoleInner() {
+function ConsoleInner({ email }: { email?: string }) {
   const [mode, setMode] = useState<Mode>("produce");
   const [session, setSession] = useState<Session | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -50,14 +59,14 @@ function ConsoleInner() {
   const live = voice.status === "connected";
 
   useEffect(() => {
-    startAlic3xSession({ data: { mode: "produce" } })
+    api<{ sessionId: string; signedUrl: string | null }>("/api/session", { mode: "produce" })
       .then((s) => setSession({ id: s.sessionId, signedUrl: s.signedUrl }))
       .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't start a session"));
   }, []);
 
   useEffect(() => {
     const check = () =>
-      getBridgeStatus()
+      api<{ online: boolean }>("/api/bridge-status")
         .then((s) => setBridgeOnline(s.online))
         .catch(() => setBridgeOnline(false));
     void check();
@@ -69,7 +78,7 @@ function ConsoleInner() {
   useEffect(() => {
     if (!live || !session) return;
     const t = setInterval(() => {
-      listAlic3xToolEvents({ data: { sessionId: session.id } })
+      api<ToolEvent[]>(`/api/tool-events?sessionId=${encodeURIComponent(session.id)}`)
         .then(mergeEvents)
         .catch(() => {});
     }, 2_000);
@@ -114,7 +123,11 @@ function ConsoleInner() {
     addTurn({ role: "user", text, channel: "text" });
     setBusy(true);
     try {
-      const res = await askAlic3x({ data: { sessionId: session.id, mode, text } });
+      const res = await api<{ reply: string; toolEvents: ToolEvent[] }>("/api/ask", {
+        sessionId: session.id,
+        mode,
+        text,
+      });
       mergeEvents(res.toolEvents);
       addTurn({ role: "agent", text: res.reply, channel: "text" });
     } catch (err) {
@@ -136,6 +149,16 @@ function ConsoleInner() {
         <div className="flex items-center gap-2 text-xs">
           <StatusPill label="Bridge" state={bridgeOnline} />
           <StatusPill label="Voice" state={session?.signedUrl ? live : null} idleText="ready" />
+          {email && (
+            <form action="/auth/signout" method="post">
+              <button
+                className="rounded-full border border-border px-2.5 py-1 text-muted hover:text-fg"
+                title={email}
+              >
+                Sign out
+              </button>
+            </form>
+          )}
         </div>
       </header>
 
