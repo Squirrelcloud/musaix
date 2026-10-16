@@ -20,3 +20,6 @@ coverage/
 .node_modules.lock
 AGENTS.md
 AGENTS.project.md
+__pycache__/
+.pytest_cache/
+.venv/

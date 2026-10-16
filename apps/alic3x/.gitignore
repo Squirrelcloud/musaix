@@ -1,0 +1,9 @@
+.next/
+.eve/
+.output/
+.nitro/
+node_modules/
+next-env.d.ts
+*.tsbuildinfo
+.vercel/
+.env*
