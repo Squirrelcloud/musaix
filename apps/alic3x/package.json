@@ -7,13 +7,19 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/alic3x/brain.test.ts lib/allowlist.test.ts"
+    "test": "node --experimental-strip-types --test lib/allowlist.test.ts agent/lib/*.test.ts",
+    "dev:eve": "eve dev",
+    "build:eve": "eve build"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.70",
     "@elevenlabs/react": "^1.18.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "ai": "^7.0.137",
     "clsx": "^2.1.1",
+    "eve": "^0.80.0",
+    "just-bash": "^3.6.0",
     "lucide-react": "^1.58.0",
     "next": "^16.4.2",
     "react": "^19.3.1",
@@ -24,13 +30,16 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^22.16.5",
+    "@types/node": "24.x",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.2.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3"
   },
   "engines": {
-    "node": ">=22"
+    "node": "24.x"
+  },
+  "imports": {
+    "#*": "./agent/*"
   }
 }

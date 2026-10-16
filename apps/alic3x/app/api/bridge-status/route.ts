@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth.server";
-import { createBridge } from "@/lib/alic3x/adapters.server";
+import { createBridge } from "@/agent/lib/bridge";
 
 export async function GET() {
   const userId = await requireUser();

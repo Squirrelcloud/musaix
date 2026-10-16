@@ -1,27 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { useEveAgent, type EveMessagePart } from "eve/react";
 import { Mic, MicOff, Send, Square, Wrench } from "lucide-react";
 import { toast } from "sonner";
-import { MODES, MODE_LABELS, type Mode, type ToolEvent } from "@/lib/alic3x/tools";
+import { MODES, MODE_HEADER, MODE_LABELS, type Mode } from "@/agent/lib/modes";
 import { cn } from "@/lib/utils";
 
-async function api<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: body === undefined ? undefined : { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401) window.location.assign("/login");
-  if (!res.ok)
-    throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
-  return data as T;
-}
-
-type Turn = { id: string; role: "user" | "agent"; text: string; channel: "voice" | "text" };
-type Session = { id: string; signedUrl: string | null };
+type ToolPart = Extract<EveMessagePart, { type: "dynamic-tool" }>;
 
 export function Alic3xConsole({ email }: { email?: string }) {
   return (
@@ -33,108 +20,95 @@ export function Alic3xConsole({ email }: { email?: string }) {
 
 function ConsoleInner({ email }: { email?: string }) {
   const [mode, setMode] = useState<Mode>("produce");
-  const [session, setSession] = useState<Session | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [events, setEvents] = useState<ToolEvent[]>([]);
+  const modeRef = useRef<Mode>(mode);
+  modeRef.current = mode;
+  const [signedUrl, setSignedUrl] = useState<string | null | undefined>(undefined);
   const [bridgeOnline, setBridgeOnline] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
 
-  const addTurn = useCallback((t: Omit<Turn, "id">) => {
-    setTurns((prev) => [...prev, { ...t, id: crypto.randomUUID() }]);
-  }, []);
-  const mergeEvents = useCallback((incoming: ToolEvent[]) => {
-    setEvents((prev) => {
-      const seen = new Set(prev.map((e) => e.id));
-      const fresh = incoming.filter((e) => !seen.has(e.id));
-      return fresh.length ? [...prev, ...fresh] : prev;
-    });
-  }, []);
+  // The eve agent is the brain. Text turns go straight to it; voice turns reach
+  // the same session through the ElevenLabs webhook, and this stream shows both.
+  const agent = useEveAgent({
+    headers: () => ({ [MODE_HEADER]: modeRef.current }),
+    onError: (err) => toast.error(err.message),
+  });
+  const busy = agent.status === "submitted" || agent.status === "streaming";
+  const agentRef = useRef(agent);
+  agentRef.current = agent;
 
   const voice = useConversation({
-    onMessage: ({ message, role }) => addTurn({ role, text: message, channel: "voice" }),
     onError: (message) => toast.error(`Voice: ${message}`),
   });
   const live = voice.status === "connected";
 
   useEffect(() => {
-    api<{ sessionId: string; signedUrl: string | null }>("/api/session", { mode: "produce" })
-      .then((s) => setSession({ id: s.sessionId, signedUrl: s.signedUrl }))
-      .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't start a session"));
+    fetch("/api/voice", { method: "POST" })
+      .then((r) => (r.status === 401 ? (window.location.assign("/login"), null) : r.json()))
+      .then((d) => setSignedUrl(d?.signedUrl ?? null))
+      .catch(() => setSignedUrl(null));
   }, []);
 
   useEffect(() => {
     const check = () =>
-      api<{ online: boolean }>("/api/bridge-status")
-        .then((s) => setBridgeOnline(s.online))
+      fetch("/api/bridge-status")
+        .then((r) => r.json())
+        .then((s: { online?: boolean }) => setBridgeOnline(Boolean(s.online)))
         .catch(() => setBridgeOnline(false));
     void check();
     const t = setInterval(check, 10_000);
     return () => clearInterval(t);
   }, []);
 
-  // Voice turns execute server-side (ElevenLabs → webhook → brain); pull their tool calls in.
-  useEffect(() => {
-    if (!live || !session) return;
-    const t = setInterval(() => {
-      api<ToolEvent[]>(`/api/tool-events?sessionId=${encodeURIComponent(session.id)}`)
-        .then(mergeEvents)
-        .catch(() => {});
-    }, 2_000);
-    return () => clearInterval(t);
-  }, [live, session, mergeEvents]);
-
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [turns]);
+  }, [agent.data.messages]);
+
+  const toolParts = useMemo(
+    () =>
+      agent.data.messages.flatMap((m) =>
+        m.parts.filter((p): p is ToolPart => p.type === "dynamic-tool"),
+      ),
+    [agent.data.messages],
+  );
 
   const startVoice = useCallback(
     async (m: Mode) => {
-      if (!session?.signedUrl) return;
+      if (!signedUrl) return;
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        voice.startSession({
-          signedUrl: session.signedUrl,
-          dynamicVariables: { session_id: session.id, mode: m },
-        });
-      } catch {
-        toast.error("Microphone permission is needed for voice.");
+        // Voice needs the eve session ID up front so the webhook can post into it.
+        if (!agentRef.current.session) await agentRef.current.prewarm();
+        let sessionId = agentRef.current.session?.sessionId;
+        for (let i = 0; !sessionId && i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          sessionId = agentRef.current.session?.sessionId;
+        }
+        if (!sessionId) throw new Error("Couldn't open an Alic3X session");
+        voice.startSession({ signedUrl, dynamicVariables: { session_id: sessionId, mode: m } });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't start voice");
       }
     },
-    [session, voice],
+    [signedUrl, voice],
   );
 
   const changeMode = (m: Mode) => {
     setMode(m);
-    // The ElevenLabs agent receives mode as a dynamic variable at connect time,
-    // so a live voice session reconnects to pick it up.
+    // ElevenLabs gets the mode as a dynamic variable at connect time, so a live
+    // voice session reconnects to pick it up. Text turns read it per request.
     if (live) {
       voice.endSession();
       setTimeout(() => void startVoice(m), 300);
     }
   };
 
-  const send = async (e: FormEvent) => {
+  const send = (e: FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || !session || busy) return;
+    if (!text || agent.status === "resuming") return;
     setDraft("");
-    addTurn({ role: "user", text, channel: "text" });
-    setBusy(true);
-    try {
-      const res = await api<{ reply: string; toolEvents: ToolEvent[] }>("/api/ask", {
-        sessionId: session.id,
-        mode,
-        text,
-      });
-      mergeEvents(res.toolEvents);
-      addTurn({ role: "agent", text: res.reply, channel: "text" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Brain request failed");
-    } finally {
-      setBusy(false);
-    }
+    void agent.send(text, busy ? { turnPolicy: "steer" } : undefined);
   };
 
   return (
@@ -148,7 +122,7 @@ function ConsoleInner({ email }: { email?: string }) {
         </div>
         <div className="flex items-center gap-2 text-xs">
           <StatusPill label="Bridge" state={bridgeOnline} />
-          <StatusPill label="Voice" state={session?.signedUrl ? live : null} idleText="ready" />
+          <StatusPill label="Voice" state={signedUrl ? live : null} idleText="ready" />
           {email && (
             <form action="/auth/signout" method="post">
               <button
@@ -188,42 +162,42 @@ function ConsoleInner({ email }: { email?: string }) {
             Transcript
           </h2>
           <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
-            {turns.length === 0 && (
+            {agent.data.messages.length === 0 && (
               <p className="text-sm text-subtle">
                 Talk or type. Try “set the tempo to 92 and play”, or “mute the drums”.
               </p>
             )}
-            {turns.map((t) => (
-              <div
-                key={t.id}
-                className={cn("flex", t.role === "user" ? "justify-end" : "justify-start")}
-              >
-                <p
-                  className={cn(
-                    "max-w-[85%] rounded-md px-3 py-2 text-sm",
-                    t.role === "user" ? "bg-bg-subtle" : "border border-border",
-                  )}
-                >
-                  {t.role === "agent" && (
-                    <span className="mr-1 font-semibold text-accent">Alic3X</span>
-                  )}
-                  {t.text}
-                  {t.channel === "voice" && (
-                    <Mic className="ml-1 inline size-3 text-subtle" aria-label="voice" />
-                  )}
-                </p>
-              </div>
-            ))}
+            {agent.data.messages.map((m) => {
+              const text = m.parts
+                .filter((p) => p.type === "text")
+                .map((p) => (p as { text: string }).text)
+                .join("");
+              if (!text) return null;
+              const isUser = m.role === "user";
+              return (
+                <div key={m.id} className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+                  <p
+                    className={cn(
+                      "max-w-[85%] rounded-md px-3 py-2 text-sm whitespace-pre-wrap",
+                      isUser ? "bg-bg-subtle" : "border border-border",
+                    )}
+                  >
+                    {!isUser && <span className="mr-1 font-semibold text-accent">Alic3X</span>}
+                    {text}
+                  </p>
+                </div>
+              );
+            })}
             {busy && <p className="text-sm text-subtle">Alic3X is thinking…</p>}
             <div ref={transcriptEnd} />
           </div>
           <form onSubmit={send} className="flex items-center gap-2 border-t border-border p-3">
             <button
               type="button"
-              disabled={!session?.signedUrl}
+              disabled={!signedUrl}
               onClick={() => (live ? voice.endSession() : void startVoice(mode))}
               title={
-                session?.signedUrl
+                signedUrl
                   ? undefined
                   : "Voice not configured (ELEVENLABS_API_KEY / ELEVENLABS_AGENT_ID)"
               }
@@ -254,7 +228,7 @@ function ConsoleInner({ email }: { email?: string }) {
             />
             <button
               type="submit"
-              disabled={!draft.trim() || !session || busy}
+              disabled={!draft.trim() || agent.status === "resuming"}
               aria-label="Send"
               className="grid size-10 shrink-0 place-items-center rounded-md bg-fg text-bg disabled:opacity-40"
             >
@@ -268,24 +242,27 @@ function ConsoleInner({ email }: { email?: string }) {
             <Wrench className="size-3" /> Tool feed
           </h2>
           <ol className="flex-1 space-y-2 overflow-y-auto p-3">
-            {events.length === 0 && <li className="text-sm text-subtle">No tool calls yet.</li>}
-            {[...events].reverse().map((e) => (
-              <li
-                key={e.id}
-                className="rounded-sm border border-border bg-bg p-2 font-mono text-xs"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className={e.ok ? "text-fg" : "text-accent"}>
-                    {e.ok ? "✓" : "✗"} {e.tool}
-                  </span>
-                  <span className="text-subtle">{e.ms}ms</span>
-                </div>
-                {e.args && Object.keys(e.args as object).length > 0 && (
-                  <div className="mt-1 break-all text-muted">{JSON.stringify(e.args)}</div>
-                )}
-                {e.error && <div className="mt-1 break-words text-accent">{e.error}</div>}
-              </li>
-            ))}
+            {toolParts.length === 0 && <li className="text-sm text-subtle">No tool calls yet.</li>}
+            {[...toolParts].reverse().map((p) => {
+              const failed = p.state === "output-error";
+              const done = p.state === "output-available";
+              return (
+                <li
+                  key={p.toolCallId}
+                  className="rounded-sm border border-border bg-bg p-2 font-mono text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={failed ? "text-accent" : "text-fg"}>
+                      {failed ? "✗" : done ? "✓" : "…"} {p.toolMetadata?.eve?.label ?? p.toolName}
+                    </span>
+                    <span className="text-subtle">{p.toolName}</span>
+                  </div>
+                  {failed && p.errorText && (
+                    <div className="mt-1 break-words text-accent">{p.errorText}</div>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </aside>
       </div>

@@ -1,14 +1,18 @@
-import { askBrain, parseMode, secretMatches, SessionError } from "@/lib/alic3x/service.server";
+import { Client } from "eve/client";
+import { MODE_HEADER, parseMode } from "@/agent/lib/modes";
+import { isSessionId, secretMatches } from "@/lib/elevenlabs.server";
 
 export const maxDuration = 60;
 
 /**
- * ElevenLabs → Tool Brain. Configure the ElevenLabs agent with ONE server tool
- * (webhook, POST) pointing here — see docs/ALIC3X.md. The agent is just the
- * voice: it forwards what Sterling said and speaks back `reply`.
+ * ElevenLabs → eve. Configure the ElevenLabs agent with ONE server tool
+ * (webhook, POST) pointing here — see docs/ALIC3X.md. The voice agent forwards
+ * what Sterling said; this route posts it into the console's eve session and
+ * returns Alic3X's reply for ElevenLabs to speak. Because it lands in the same
+ * session, the console's transcript and tool feed show voice turns live.
  *
- * Auth: shared secret in `x-alic3x-secret` (ELEVENLABS_TOOL_SECRET). The user
- * comes from the server-minted session, never from the request body.
+ * Auth: ElevenLabs → here with `x-alic3x-secret` (ELEVENLABS_TOOL_SECRET);
+ * here → eve with `x-alic3x-internal` (ALIC3X_INTERNAL_SECRET).
  */
 export async function POST(request: Request) {
   if (
@@ -19,26 +23,35 @@ export async function POST(request: Request) {
   ) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
+  const internal = process.env.ALIC3X_INTERNAL_SECRET?.trim();
+  if (!internal)
+    return Response.json({ error: "ALIC3X_INTERNAL_SECRET is not set" }, { status: 500 });
+
   const body = (await request.json().catch(() => null)) as {
     utterance?: unknown;
     session_id?: unknown;
     mode?: unknown;
   } | null;
-  const text = typeof body?.utterance === "string" ? body.utterance.trim() : "";
-  const sessionId = typeof body?.session_id === "string" ? body.session_id : "";
-  if (!text || !sessionId) {
-    return Response.json({ error: "utterance and session_id are required" }, { status: 400 });
+  const text = typeof body?.utterance === "string" ? body.utterance.trim().slice(0, 4000) : "";
+  if (!text || !isSessionId(body?.session_id)) {
+    return Response.json(
+      { error: "utterance and a valid session_id are required" },
+      { status: 400 },
+    );
   }
+
+  const client = new Client({
+    host: new URL(request.url).origin,
+    headers: { "x-alic3x-internal": internal, [MODE_HEADER]: parseMode(body?.mode) },
+    redirect: "manual",
+  });
   try {
-    const { reply, toolEvents } = await askBrain({
-      sessionId,
-      mode: parseMode(body?.mode),
-      text: text.slice(0, 4000),
-      channel: "voice",
-    });
-    return Response.json({ reply, tool_events: toolEvents });
+    const response = await client.sessions
+      .attach(body.session_id)
+      .send(text, { turnPolicy: "queue" });
+    const result = await response.result();
+    return Response.json({ reply: result.message ?? "Done." });
   } catch (err) {
-    if (err instanceof SessionError) return Response.json({ error: err.message }, { status: 404 });
     console.error("[alic3x] elevenlabs-tool:", err);
     // Still give the voice agent something speakable.
     return Response.json(

@@ -1,32 +1,17 @@
--- Alic3X Pro — Supabase schema (auth-adjacent state, transcripts, tool logs,
--- memory, knowledge base). Apply with `supabase db push` or paste into the SQL
--- editor. The Musaix backend talks to these tables with the service-role key
+-- Alic3X Pro — Supabase schema (tool-call log, long-term memory, knowledge
+-- base). Sign-in uses Supabase Auth; no tables needed for it.
+-- Apply with `supabase db push` or paste into the SQL editor. The Musaix backend talks to these tables with the service-role key
 -- (server-only), so RLS is enabled with no anon/authenticated policies: the
 -- browser never reads them directly.
 --
--- user_id is the Musaix (Better Auth) user id, stored as text.
+-- user_id is the Supabase Auth user id (auth.users.id), stored as text.
 
-create table if not exists public.alic3x_sessions (
-  id uuid primary key,
-  user_id text not null,
-  mode text not null default 'produce' check (mode in ('produce', 'mix', 'perform', 'chat')),
-  created_at timestamptz not null default now()
-);
-create index if not exists alic3x_sessions_user_idx on public.alic3x_sessions (user_id, created_at desc);
-
-create table if not exists public.alic3x_turns (
-  id bigint generated always as identity primary key,
-  session_id uuid not null references public.alic3x_sessions (id) on delete cascade,
-  role text not null check (role in ('user', 'agent')),
-  text text not null,
-  created_at timestamptz not null default now()
-);
-create index if not exists alic3x_turns_session_idx on public.alic3x_turns (session_id, created_at desc);
+-- Sessions and transcripts live in eve (durable workflow state). Supabase keeps
+-- what should outlive a session: a tool-call log, memory and the knowledge base.
 
 create table if not exists public.alic3x_tool_calls (
   id bigint generated always as identity primary key,
-  session_id uuid not null references public.alic3x_sessions (id) on delete cascade,
-  call_id text not null,
+  session_id text not null, -- eve session ID (wrun_…)
   tool text not null,
   args jsonb,
   ok boolean not null,
@@ -77,8 +62,6 @@ as $$
   limit greatest(1, least(match_count, 20));
 $$;
 
-alter table public.alic3x_sessions enable row level security;
-alter table public.alic3x_turns enable row level security;
 alter table public.alic3x_tool_calls enable row level security;
 alter table public.alic3x_memories enable row level security;
 alter table public.alic3x_kb_chunks enable row level security;
