@@ -69,3 +69,18 @@ async def test_panic_sends_both_stops():
 async def test_snapshot():
     snap = await run_tool(MockLive(num_tracks=3, num_scenes=5), "state.snapshot", {})
     assert snap == {"tempo": 120.0, "is_playing": False, "num_tracks": 3, "num_scenes": 5}
+
+
+async def test_scene_fire_fails_when_transport_never_starts():
+    class DeafLive(MockLive):
+        async def send(self, address, *args):
+            if address != "/live/scene/fire":
+                await super().send(address, *args)
+
+    with pytest.raises(ToolError, match="scene 0 launch"):
+        await run_tool(DeafLive(), "scene.fire", {"index": 0})
+
+
+async def test_scene_fire_reports_what_it_confirmed():
+    result = await run_tool(MockLive(), "scene.fire", {"index": 1})
+    assert result == {"fired": 1, "transport_playing": True, "clip_launch_confirmed": False}

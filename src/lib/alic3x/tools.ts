@@ -39,7 +39,8 @@ export const TOOLS = {
     destructive: false,
   },
   "scene.fire": {
-    description: "Launch a scene by zero-based index.",
+    description:
+      "Launch a scene by zero-based index. Confirms the transport is playing; individual clip launches are not yet confirmed.",
     args: z.object({ index: z.number().int().min(0) }).strict(),
     destructive: false,
   },

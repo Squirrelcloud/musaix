@@ -11,8 +11,8 @@ const MAX_WAIT_MS = 25_000;
  *
  * Validates against the registry, queues it for the bridge, and waits for the
  * bridge's result. 200 with the result on success, 502 if Live reported a
- * failure, 504 if no bridge picked it up in time (the command is expired so it
- * can never fire late).
+ * failure, 504 if no result arrived in time: a never-claimed command is expired
+ * so it can never fire late; a claimed one reports that its outcome is unknown.
  */
 export const Route = createFileRoute("/api/tools/invoke")({
   server: {
@@ -39,10 +39,14 @@ export const Route = createFileRoute("/api/tools/invoke")({
         if (!finished) {
           await expireIfQueued(id);
           const row = await getCommand(id);
-          return Response.json(
-            { id, status: row?.status ?? "expired", error: "bridge did not respond in time" },
-            { status: 504 },
-          );
+          const status = row?.status ?? "expired";
+          // "claimed" means the bridge took it and may have run it in Live:
+          // the outcome is unknown, so callers must not blindly retry.
+          const error =
+            status === "claimed"
+              ? "bridge took the command but its result has not arrived; it may have run, do not retry blindly"
+              : "no bridge picked up the command; it was expired and will not run";
+          return Response.json({ id, status, error }, { status: 504 });
         }
         return Response.json(
           { id, status: finished.status, result: finished.result, error: finished.error },

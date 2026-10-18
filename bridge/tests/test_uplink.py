@@ -54,3 +54,45 @@ async def test_empty_poll():
     uplink = make_uplink(lambda r: httpx.Response(200, json={"command": None}))
     assert await uplink.poll_once() is None
     assert uplink.connected
+
+
+async def test_result_delivery_retries_transient_failures(monkeypatch):
+    monkeypatch.setattr("alic3x_bridge.uplink.RESULT_RETRY_BASE_S", 0)
+    attempts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(request.url.path)
+        if len(attempts) == 1:
+            raise httpx.ConnectError("boom", request=request)
+        if len(attempts) == 2:
+            return httpx.Response(503)
+        return httpx.Response(200, json={"ok": True})
+
+    uplink = make_uplink(handler)
+    await uplink.execute({"id": "c3", "tool": "transport.stop", "args": {}})
+    assert attempts == ["/api/bridge/result"] * 3
+
+
+async def test_result_delivery_gives_up_without_raising(monkeypatch):
+    monkeypatch.setattr("alic3x_bridge.uplink.RESULT_RETRY_BASE_S", 0)
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(502)
+
+    uplink = make_uplink(handler)
+    await uplink.execute({"id": "c4", "tool": "transport.stop", "args": {}})
+    assert len(calls) == 5
+
+
+async def test_result_conflict_is_not_retried(monkeypatch):
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(409, json={"error": "command not claimed"})
+
+    uplink = make_uplink(handler)
+    await uplink.execute({"id": "c5", "tool": "transport.stop", "args": {}})
+    assert len(calls) == 1

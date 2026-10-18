@@ -23,6 +23,8 @@ log = logging.getLogger(__name__)
 POLL_WAIT_MS = 20_000
 TOOL_TIMEOUT_S = 5.0
 MAX_BACKOFF_S = 30.0
+RESULT_ATTEMPTS = 5
+RESULT_RETRY_BASE_S = 0.5
 
 
 class Uplink:
@@ -65,11 +67,32 @@ class Uplink:
             payload.update(ok=False, error=message)
             log.warning("%s %s failed: %s", tool, args, message)
         payload["state"] = self.live.state
-        res = await self._client.post("/api/bridge/result", json=payload)
-        if res.status_code == 409:
-            log.warning("backend no longer tracks command %s", command["id"])
-        else:
-            res.raise_for_status()
+        await self._deliver(payload)
+
+    async def _deliver(self, payload: dict[str, Any]) -> None:
+        """Post a result, retrying transient failures.
+
+        The command already ran in Live, so dropping the result would leave the
+        row `claimed` and the caller guessing; a caller that retries a
+        non-idempotent tool (scene.fire) would run it twice.
+        """
+        delay = RESULT_RETRY_BASE_S
+        for attempt in range(1, RESULT_ATTEMPTS + 1):
+            try:
+                res = await self._client.post("/api/bridge/result", json=payload)
+                if res.status_code == 409:
+                    log.warning("backend no longer tracks command %s", payload["id"])
+                    return
+                if res.status_code < 500:
+                    res.raise_for_status()
+                    return
+                log.warning("result for %s got %s (attempt %d)", payload["id"], res.status_code, attempt)
+            except httpx.TransportError as e:
+                log.warning("result for %s not delivered (attempt %d): %r", payload["id"], attempt, e)
+            if attempt < RESULT_ATTEMPTS:
+                await asyncio.sleep(delay)
+                delay *= 2
+        log.error("giving up on result for %s after %d attempts", payload["id"], RESULT_ATTEMPTS)
 
     async def run(self) -> None:
         backoff = 1.0

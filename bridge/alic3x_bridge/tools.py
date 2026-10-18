@@ -111,7 +111,11 @@ async def _fire_scene(live: LiveAdapter, args: SceneArgs) -> dict[str, Any]:
     if args.index >= scenes:
         raise ToolError(f"scene {args.index} does not exist (set has {scenes} scenes)")
     await live.send("/live/scene/fire", args.index)
-    return {"fired": args.index}
+    # Live starts the transport when a scene fires, so a stopped transport means
+    # the launch was lost. Which clips launched is not observable from here yet,
+    # so say so instead of claiming it.
+    await _verify(lambda: _is_playing(live), lambda v: v is True, f"scene {args.index} launch")
+    return {"fired": args.index, "transport_playing": True, "clip_launch_confirmed": False}
 
 
 async def _mute(live: LiveAdapter, args: MuteArgs) -> dict[str, Any]:
