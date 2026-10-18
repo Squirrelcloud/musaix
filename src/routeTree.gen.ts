@@ -10,33 +10,102 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiBridgePollRouteImport } from './routes/api/bridge/poll'
+import { Route as ApiBridgeResultRouteImport } from './routes/api/bridge/result'
+import { Route as ApiBridgeStatusRouteImport } from './routes/api/bridge/status'
+import { Route as ApiToolsIndexRouteImport } from './routes/api/tools/index'
+import { Route as ApiToolsInvokeRouteImport } from './routes/api/tools/invoke'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBridgePollRoute = ApiBridgePollRouteImport.update({
+  id: '/api/bridge/poll',
+  path: '/api/bridge/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBridgeResultRoute = ApiBridgeResultRouteImport.update({
+  id: '/api/bridge/result',
+  path: '/api/bridge/result',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBridgeStatusRoute = ApiBridgeStatusRouteImport.update({
+  id: '/api/bridge/status',
+  path: '/api/bridge/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsIndexRoute = ApiToolsIndexRouteImport.update({
+  id: '/api/tools/',
+  path: '/api/tools/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsInvokeRoute = ApiToolsInvokeRouteImport.update({
+  id: '/api/tools/invoke',
+  path: '/api/tools/invoke',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/bridge/poll': typeof ApiBridgePollRoute
+  '/api/bridge/result': typeof ApiBridgeResultRoute
+  '/api/bridge/status': typeof ApiBridgeStatusRoute
+  '/api/tools/invoke': typeof ApiToolsInvokeRoute
+  '/api/tools/': typeof ApiToolsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/bridge/poll': typeof ApiBridgePollRoute
+  '/api/bridge/result': typeof ApiBridgeResultRoute
+  '/api/bridge/status': typeof ApiBridgeStatusRoute
+  '/api/tools/invoke': typeof ApiToolsInvokeRoute
+  '/api/tools': typeof ApiToolsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/bridge/poll': typeof ApiBridgePollRoute
+  '/api/bridge/result': typeof ApiBridgeResultRoute
+  '/api/bridge/status': typeof ApiBridgeStatusRoute
+  '/api/tools/invoke': typeof ApiToolsInvokeRoute
+  '/api/tools/': typeof ApiToolsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/api/bridge/poll'
+    | '/api/bridge/result'
+    | '/api/bridge/status'
+    | '/api/tools/invoke'
+    | '/api/tools/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/api/bridge/poll'
+    | '/api/bridge/result'
+    | '/api/bridge/status'
+    | '/api/tools/invoke'
+    | '/api/tools'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/bridge/poll'
+    | '/api/bridge/result'
+    | '/api/bridge/status'
+    | '/api/tools/invoke'
+    | '/api/tools/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiBridgePollRoute: typeof ApiBridgePollRoute
+  ApiBridgeResultRoute: typeof ApiBridgeResultRoute
+  ApiBridgeStatusRoute: typeof ApiBridgeStatusRoute
+  ApiToolsInvokeRoute: typeof ApiToolsInvokeRoute
+  ApiToolsIndexRoute: typeof ApiToolsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +117,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/bridge/poll': {
+      id: '/api/bridge/poll'
+      path: '/api/bridge/poll'
+      fullPath: '/api/bridge/poll'
+      preLoaderRoute: typeof ApiBridgePollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bridge/result': {
+      id: '/api/bridge/result'
+      path: '/api/bridge/result'
+      fullPath: '/api/bridge/result'
+      preLoaderRoute: typeof ApiBridgeResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bridge/status': {
+      id: '/api/bridge/status'
+      path: '/api/bridge/status'
+      fullPath: '/api/bridge/status'
+      preLoaderRoute: typeof ApiBridgeStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools/': {
+      id: '/api/tools/'
+      path: '/api/tools'
+      fullPath: '/api/tools/'
+      preLoaderRoute: typeof ApiToolsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools/invoke': {
+      id: '/api/tools/invoke'
+      path: '/api/tools/invoke'
+      fullPath: '/api/tools/invoke'
+      preLoaderRoute: typeof ApiToolsInvokeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiBridgePollRoute: ApiBridgePollRoute,
+  ApiBridgeResultRoute: ApiBridgeResultRoute,
+  ApiBridgeStatusRoute: ApiBridgeStatusRoute,
+  ApiToolsInvokeRoute: ApiToolsInvokeRoute,
+  ApiToolsIndexRoute: ApiToolsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
