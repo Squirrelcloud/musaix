@@ -18,9 +18,9 @@ If the timer runs out, the job fails and a new one comes in. Each time a cop ram
 
 ### Drivers
 
-| Driver | Car | Feel |
-|---|---|---|
-| **The Don** | Red '86 Testa wedge supercar | Fast, planted, high grip |
+| Driver        | Car                                    | Feel                     |
+| ------------- | -------------------------------------- | ------------------------ |
+| **The Don**   | Red '86 Testa wedge supercar           | Fast, planted, high grip |
 | **Cold Case** | Black '70 muscle car with gold stripes | More torque, looser tail |
 
 ### Heat
@@ -28,25 +28,25 @@ If the timer runs out, the job fails and a new one comes in. Each time a cop ram
 The number of cops chasing you on a drop goes up as you complete more jobs:
 
 | Jobs completed | Cops on the drop |
-|---|---|
-| 0–2 | 1 |
-| 3–5 | 2 |
-| 6+ | 3 |
+| -------------- | ---------------- |
+| 0–2            | 1                |
+| 3–5            | 2                |
+| 6+             | 3                |
 
 Each cop can ram you once every 3 seconds. Each hit costs $1,500 plus $500 per heat star.
 
 ## Controls
 
-| Action | Keyboard | Touch |
-|---|---|---|
-| Gas | `W` / `↑` | Gas |
-| Brake / reverse | `S` / `↓` | Brk |
-| Steer | `A` `D` / `←` `→` | ◀ ▶ |
-| Handbrake drift | `Space` | Drift |
-| Nitro | `Shift` (while on the gas) | NOS |
-| Switch camera (chase / high / bumper) | `C` | none |
-| Radio on/off | `M` | Tap the radio button |
-| Pause | `P` / `Esc` | none |
+| Action                                | Keyboard                   | Touch                |
+| ------------------------------------- | -------------------------- | -------------------- |
+| Gas                                   | `W` / `↑`                  | Gas                  |
+| Brake / reverse                       | `S` / `↓`                  | Brk                  |
+| Steer                                 | `A` `D` / `←` `→`          | ◀ ▶                  |
+| Handbrake drift                       | `Space`                    | Drift                |
+| Nitro                                 | `Shift` (while on the gas) | NOS                  |
+| Switch camera (chase / high / bumper) | `C`                        | none                 |
+| Radio on/off                          | `M`                        | Tap the radio button |
+| Pause                                 | `P` / `Esc`                | none                 |
 
 The game also pauses on its own when you switch to another tab.
 
@@ -71,12 +71,12 @@ Your cash and number of completed jobs are saved in `localStorage` under the key
 
 ### Files
 
-| File | Purpose |
-|---|---|
-| `index.html` | The whole game: markup, styles, and code |
-| `keyart.jpg` | Menu key art |
-| `don.jpg`, `cold.jpg` | Driver portraits |
-| `track.mp3` | Radio track, "Don Sterleone" by s73rl |
+| File                  | Purpose                                  |
+| --------------------- | ---------------------------------------- |
+| `index.html`          | The whole game: markup, styles, and code |
+| `keyart.jpg`          | Menu key art                             |
+| `don.jpg`, `cold.jpg` | Driver portraits                         |
+| `track.mp3`           | Radio track, "Don Sterleone" by s73rl    |
 
 ### Run locally
 
