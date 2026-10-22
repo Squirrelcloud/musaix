@@ -1,0 +1,255 @@
+{
+  "$defs": {
+    "Beats": {
+      "additionalProperties": false,
+      "properties": {
+        "timestamps_seconds": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Timestamps Seconds",
+          "type": "array"
+        },
+        "strength": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Strength",
+          "type": "array"
+        }
+      },
+      "required": [
+        "timestamps_seconds",
+        "strength"
+      ],
+      "title": "Beats",
+      "type": "object"
+    },
+    "Scalar": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "status": {
+          "enum": [
+            "measured",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "status",
+        "unit"
+      ],
+      "title": "Scalar",
+      "type": "object"
+    },
+    "Unavailable": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "default": null,
+          "title": "Value",
+          "type": "null"
+        },
+        "status": {
+          "enum": [
+            "unsupported",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "title": "Unavailable",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "algorithm_version": {
+      "const": "librosa-0.11.0-musaix-1",
+      "default": "librosa-0.11.0-musaix-1",
+      "title": "Algorithm Version",
+      "type": "string"
+    },
+    "duration_seconds": {
+      "exclusiveMinimum": 0,
+      "maximum": 180,
+      "title": "Duration Seconds",
+      "type": "number"
+    },
+    "sample_rate_hz": {
+      "exclusiveMinimum": 0,
+      "maximum": 96000,
+      "title": "Sample Rate Hz",
+      "type": "integer"
+    },
+    "channels": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Channels",
+      "type": "integer"
+    },
+    "feature_sample_rate_hz": {
+      "const": 22050,
+      "default": 22050,
+      "title": "Feature Sample Rate Hz",
+      "type": "integer"
+    },
+    "tempo_bpm": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "tempo_confidence": {
+      "$ref": "#/$defs/Unavailable"
+    },
+    "beats": {
+      "$ref": "#/$defs/Beats"
+    },
+    "key": {
+      "$ref": "#/$defs/Unavailable"
+    },
+    "mode": {
+      "$ref": "#/$defs/Unavailable"
+    },
+    "key_confidence": {
+      "$ref": "#/$defs/Unavailable"
+    },
+    "rms": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "rms_dbfs": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "integrated_lufs": {
+      "$ref": "#/$defs/Unavailable"
+    },
+    "mfcc_mean": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 13,
+      "minItems": 13,
+      "title": "Mfcc Mean",
+      "type": "array"
+    },
+    "mfcc_std": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 13,
+      "minItems": 13,
+      "title": "Mfcc Std",
+      "type": "array"
+    },
+    "chroma_mean": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 12,
+      "minItems": 12,
+      "title": "Chroma Mean",
+      "type": "array"
+    },
+    "spectral_centroid_hz": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "spectral_bandwidth_hz": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "spectral_rolloff_hz": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "zero_crossing_rate": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "onset_timestamps_seconds": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Onset Timestamps Seconds",
+      "type": "array"
+    },
+    "harmonic_rms": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "percussive_rms": {
+      "$ref": "#/$defs/Scalar"
+    },
+    "analysis_duration_seconds": {
+      "minimum": 0,
+      "title": "Analysis Duration Seconds",
+      "type": "number"
+    }
+  },
+  "required": [
+    "duration_seconds",
+    "sample_rate_hz",
+    "channels",
+    "tempo_bpm",
+    "tempo_confidence",
+    "beats",
+    "key",
+    "mode",
+    "key_confidence",
+    "rms",
+    "rms_dbfs",
+    "integrated_lufs",
+    "mfcc_mean",
+    "mfcc_std",
+    "chroma_mean",
+    "spectral_centroid_hz",
+    "spectral_bandwidth_hz",
+    "spectral_rolloff_hz",
+    "zero_crossing_rate",
+    "onset_timestamps_seconds",
+    "harmonic_rms",
+    "percussive_rms",
+    "analysis_duration_seconds"
+  ],
+  "title": "Report",
+  "type": "object"
+}
